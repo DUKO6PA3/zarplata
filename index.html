@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Зарплата">
+<meta name="theme-color" content="#f2f3f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1218" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Моя зарплата</title>
+<style>
+:root {
+  /* Layout: one narrow column — итог сверху, календарь месяца, редактор выбранного дня, настройки */
+  --bg: #f2f3f6;
+  --surface: #ffffff;
+  --ink: #161d2b;
+  --muted: #677084;
+  --line: #e0e3ea;
+  --accent: #2f56e0;
+  --accent-soft: #e6ecfd;
+  --holiday: #d23f3f;
+  --holiday-soft: #fbe9e9;
+  --off-soft: #eaecf1;
+  --night: #5a47cf;
+  --night-soft: #ece9fb;
+  --short: #d9741a;
+  --short-soft: #fdeedf;
+  --work: #2e9b57;
+  --work-soft: #e4f4ea;
+  --font: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1218; --surface: #161b24; --ink: #e6e9ef; --muted: #8b94a6; --line: #262d39;
+    --accent: #7590ff; --accent-soft: #1e2744; --holiday: #ff6e6e; --holiday-soft: #3a1f23;
+    --off-soft: #1c222d; --night: #a395ff; --night-soft: #262145; --short: #f0954a; --short-soft: #3a2615; --work: #4fc47d; --work-soft: #17301f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1218; --surface: #161b24; --ink: #e6e9ef; --muted: #8b94a6; --line: #262d39;
+  --accent: #7590ff; --accent-soft: #1e2744; --holiday: #ff6e6e; --holiday-soft: #3a1f23;
+  --off-soft: #1c222d; --night: #a395ff; --night-soft: #262145; --short: #f0954a; --short-soft: #3a2615; --work: #4fc47d; --work-soft: #17301f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font);
+  font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 520px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 14px; }
+.num { font-variant-numeric: tabular-nums; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.save-state { font-size: 12px; color: var(--muted); }
+.month-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.month-nav h2 { font-size: 18px; margin: 0; font-weight: 600; text-transform: capitalize; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); font-size: 18px; display: grid; place-items: center;
+}
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.total-label { font-size: 13px; color: var(--muted); }
+.total { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; margin: 2px 0 2px; }
+.net { font-size: 14px; color: var(--muted); }
+.net b { color: var(--ink); font-weight: 600; }
+.rows { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.row span:first-child { color: var(--muted); }
+.row .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.norm { margin-top: 12px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); font-size: 13px; text-decoration: underline; text-underline-offset: 2px; }
+.warn { margin-top: 10px; font-size: 13px; color: var(--short); }
+.norm-edit { margin-top: 10px; display: none; gap: 10px; align-items: end; flex-wrap: wrap; }
+.norm-edit.open { display: flex; }
+
+.dow, .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.dow { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 6px; }
+.dow span:nth-child(n+6) { color: var(--holiday); }
+.cell {
+  aspect-ratio: 1 / 1.08; overflow: hidden; min-height: 0; border-radius: 10px; border: 1px solid transparent; background: transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 6px 0 4px;
+  position: relative; min-width: 0;
+}
+.cell .d { font-size: 15px; font-weight: 500; line-height: 1; }
+.cell .h { font-size: 11px; margin-top: auto; font-weight: 600; line-height: 1; white-space: nowrap; }
+/* Цвета дней: рабочий — зелёный, работа в выходной — зелёный пунктир, выходной — красный, ночь — фиолетовый, ушёл раньше — оранжевый */
+.cell.work { background: var(--work-soft); border-color: var(--work); }
+.cell.weekend, .cell.holiday { background: var(--holiday-soft); border-color: var(--holiday); color: var(--holiday); }
+.cell .h { color: var(--work); }
+.cell.weekend.has, .cell.holiday.has { background: var(--work-soft); border: 2px dashed var(--work); color: var(--work); }
+.cell.night { background: var(--night-soft); border-color: var(--night); color: var(--ink); }
+.cell.night .h { color: var(--night); }
+.cell.weekend.night, .cell.holiday.night { border: 2px dashed var(--night); color: var(--night); }
+.cell.part { background: var(--short-soft); border-color: var(--short); }
+.cell.part.night { border-color: var(--short); }
+.cell .moon { position: absolute; top: 4px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--night); }
+.seg { display: flex; max-width: 100%; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--bg); gap: 3px; }
+.seg button { white-space: nowrap; flex: 1; border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.rep { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 14px; padding: 10px 12px; border-radius: 10px; background: var(--night-soft); }
+.rep input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--night); flex: none; }
+.cell .pm { font-size: 11px; font-weight: 600; color: var(--short); margin-top: auto; line-height: 1; }
+.cell.has .pm { margin-top: 2px; }
+.sub { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 15px; font-weight: 600; }
+.sal-edit { display: none; gap: 10px; align-items: end; flex-wrap: wrap; padding: 4px 0 6px; }
+.sal-edit.open { display: flex; }
+.sal-edit label { flex: 1; min-width: 140px; }
+.rep.tax { background: var(--bg); grid-column: 1 / -1; margin-top: 0; }
+.rep.tax small { color: var(--muted); font-size: 12px; }
+.rep.tax input { accent-color: var(--accent); }
+textarea { font: 13px/1.4 ui-monospace, monospace; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; width: 100%; resize: vertical; }
+.cell.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+.cell.today .d { text-decoration: underline; text-underline-offset: 3px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+.ed-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ed-head h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.pill { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--off-soft); color: var(--muted); font-weight: 500; }
+.pill.red { background: var(--holiday-soft); color: var(--holiday); }
+.pill.blue { background: var(--work-soft); color: var(--work); }
+.hint { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+.fields { display: grid; grid-template-columns: 1fr 1fr 0.8fr; gap: 10px; margin-top: 14px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+input[type="time"], input[type="number"] {
+  font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; font-variant-numeric: tabular-nums;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 12px; font-size: 13px; }
+.chip:hover { border-color: var(--accent); }
+.result { margin-top: 14px; padding: 12px; border-radius: 10px; background: var(--bg); font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.result .big { font-size: 18px; font-weight: 600; }
+.actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.btn { border-radius: 10px; padding: 10px 16px; border: 1px solid var(--line); background: var(--surface); font-weight: 500; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--holiday); }
+
+details.card summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+details.card summary::-webkit-details-marker { display: none; }
+details.card summary::after { content: "＋"; color: var(--muted); font-weight: 400; }
+details.card[open] summary::after { content: "－"; }
+.set-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.notes { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.notes p { margin: 0; }
+@media (max-width: 380px) {
+  .fields { grid-template-columns: 1fr 1fr; }
+  .total { font-size: 30px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cell, .chip, .btn { transition: border-color .15s, background-color .15s; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Моя зарплата</h1>
+    <span class="save-state" id="saveState">Сохраняется на этом устройстве</span>
+  </div>
+
+  <div class="month-nav">
+    <button class="icon-btn" id="prev" aria-label="Предыдущий месяц">‹</button>
+    <h2 id="monthTitle">ноябрь 2026</h2>
+    <button class="icon-btn" id="next" aria-label="Следующий месяц">›</button>
+  </div>
+
+  <section class="card" id="summary" aria-live="polite"></section>
+
+  <section class="card">
+    <div class="dow"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span></div>
+    <div class="grid" id="grid"></div>
+    <div class="legend">
+      <span><i style="background:var(--work-soft);border:1px solid var(--work)"></i>рабочий</span>
+      <span><i style="background:var(--work-soft);border:1px dashed var(--work)"></i>работа в выходной</span>
+      <span><i style="background:var(--holiday-soft);border:1px solid var(--holiday)"></i>выходной, праздник</span>
+      <span><i style="background:var(--night-soft);border:1px solid var(--night)"></i>☾ ночь</span>
+      <span><i style="background:var(--short-soft);border:1px solid var(--short)"></i>ушёл раньше</span>
+    </div>
+  </section>
+
+  <section class="card" id="editor"></section>
+
+  <details class="card" id="settingsBox">
+    <summary>Настройки расчёта</summary>
+    <div class="set-grid">
+      <label class="f" for="sWeekend">Выходные/праздники, ×<input type="number" id="sWeekend" inputmode="decimal" min="1" step="0.1"></label>
+      <label class="f" for="sNight">Надбавка за ночь, %<input type="number" id="sNight" inputmode="decimal" min="0" step="1"></label>
+      <label class="f" for="sOt">Сверхурочные, ×<input type="number" id="sOt" inputmode="decimal" min="0" step="0.1"></label>
+      <label class="rep tax" for="sTaxOn"><input type="checkbox" id="sTaxOn"><span>Удерживать НДФЛ с меня<br><small>Выключено — налог платит работодатель</small></span></label>
+      <label class="f" for="sTax" id="sTaxWrap">Ставка НДФЛ, %<input type="number" id="sTax" inputmode="decimal" min="0" step="1"></label>
+    </div>
+    <div class="notes">
+      <p>Оклад меняется прямо в итоге месяца («изменить» рядом с окладом) и действует с выбранного месяца дальше.</p>
+      <p>Часовая ставка = оклад ÷ (рабочих дней в месяце × 8 ч) по производственному календарю. Будний день, отмеченный выходным, вычитается из оклада (8 ч × ставка); ставка от этого не меняется.</p>
+      <p>В рабочий день смена 08:00–17:00 с обедом уже в окладе. Оплачиваются только часы вне этого времени: вечером, ночью, рано утром.</p>
+      <p>В выходной и праздник оплачиваются все часы смены.</p>
+      <p>Ночное время — с 20:00 до 6:00. Надбавку за ночь можно задать выше; при 0% ночные часы идут по обычной ставке.</p>
+      <p>Неполный день: часы, которых не хватает до 8 в промежутке 08:00–17:00, вычитаются из оклада по ставке.</p>
+      <p>Смена через полночь записывается на день начала. Официальный календарь заложен на 2026–2027 годы, на 2028–2036 — предварительный по ТК РФ.</p>
+    </div>
+  </details>
+
+  <details class="card" id="transferBox">
+    <summary>Перенос данных</summary>
+    <p class="hint">Чтобы перенести смены на другой телефон или в приложение: здесь нажмите «Скопировать», там вставьте текст в поле ниже и нажмите «Загрузить».</p>
+    <div class="actions"><button class="btn" type="button" id="exportBtn">Скопировать мои данные</button></div>
+    <label class="f" for="importText" style="margin-top:14px">Вставьте скопированные данные
+      <textarea id="importText" rows="3" spellcheck="false"></textarea></label>
+    <div class="actions"><button class="btn primary" type="button" id="importBtn">Загрузить</button></div>
+  </details>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Производственный календарь РФ ---------- */
+  var range = function (m, a, b) { var r = []; for (var i = a; i <= b; i++) r.push(m + "-" + String(i).padStart(2, "0")); return r; };
+  var CAL = {
+    2026: {
+      hol: range("01", 1, 8).concat(["02-23", "03-08", "05-01", "05-09", "06-12", "11-04"]),
+      off: ["01-09", "03-09", "05-11", "12-31"],
+      work: []
+    },
+    2027: {
+      hol: range("01", 1, 8).concat(["02-23", "03-08", "05-01", "05-09", "06-12", "11-04"]),
+      off: ["02-22", "05-03", "05-10", "06-14", "11-05", "12-31"],
+      work: ["02-20"]
+    }
+  };
+  var MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+  var MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  var DOW = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+  /* Обычный рабочий день: 08:00–12:00 и 13:00–17:00 */
+  var REGULAR = [[480, 720], [780, 1020]];
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function mkey(y, m) { return y + "-" + pad(m + 1); }
+
+  /* Тип дня по календарю: work | weekend | holiday */
+  /* 2028–2036: праздники по ст. 112 ТК РФ и автоматический перенос с выходного на следующий рабочий день.
+     Переносы январских выходных правительство утверждает каждый год отдельно — их здесь нет. */
+  function autoCal(y) {
+    var fixed = range("01", 1, 8).concat(["02-23", "03-08", "05-01", "05-09", "06-12", "11-04"]);
+    var off = [];
+    function key(dt) { return pad(dt.getMonth() + 1) + "-" + pad(dt.getDate()); }
+    fixed.forEach(function (k) {
+      if (k.slice(0, 2) === "01") return;
+      var dt = new Date(y, +k.slice(0, 2) - 1, +k.slice(3)), dow = dt.getDay();
+      if (dow !== 0 && dow !== 6) return;
+      var n = new Date(dt);
+      do { n.setDate(n.getDate() + 1); }
+      while (n.getDay() === 0 || n.getDay() === 6 || fixed.indexOf(key(n)) >= 0 || off.indexOf(key(n)) >= 0);
+      off.push(key(n));
+    });
+    return { hol: fixed, off: off, work: [], auto: true };
+  }
+  for (var yy = 2028; yy <= 2036; yy++) CAL[yy] = autoCal(yy);
+
+  function calType(y, m, d) {
+    var c = CAL[y], k = pad(m + 1) + "-" + pad(d), dow = new Date(y, m, d).getDay();
+    if (c) {
+      if (c.hol.indexOf(k) >= 0) return "holiday";
+      if (c.off.indexOf(k) >= 0) return "weekend";
+      if (c.work.indexOf(k) >= 0) return "work";
+    }
+    return (dow === 0 || dow === 6) ? "weekend" : "work";
+  }
+  /* Тип с учётом ваших правок: work | weekend | holiday, плюс флаг manual */
+  function dayInfo(y, m, d) {
+    var cal = calType(y, m, d), md = state.months[mkey(y, m)], o = md && md.types ? md.types[d] : null;
+    if (o === "off" && cal === "work") return { t: "weekend", cal: cal, manual: true };
+    if (o === "part" && cal === "work" && md.part && md.part[d]) return { t: "work", cal: cal, manual: false, part: md.part[d] };
+    return { t: cal, cal: cal, manual: false };
+  }
+  function daysIn(y, m) { return new Date(y, m + 1, 0).getDate(); }
+  function workDays(y, m) {
+    var n = 0;
+    for (var d = 1; d <= daysIn(y, m); d++) if (calType(y, m, d) === "work") n++;
+    return n;
+  }
+
+  /* ---------- Состояние ---------- */
+  var DEFAULTS = { salary: 150000, weekendCoef: 1, nightPct: 0, otCoef: 1, taxOn: false, tax: 13 };
+  var state = { v: 5, settings: Object.assign({}, DEFAULTS), months: {}, updated: 0 };
+  var LS_KEY = "salary-calc-v1";
+  function normalize(p) {
+    var st = Object.assign({}, DEFAULTS, p.settings || {});
+    if ((p.v || 1) < 2) { st.weekendCoef = 1; st.nightPct = 0; st.otCoef = 1; }
+    var months = p.months || {};
+    Object.keys(months).forEach(function (k) {
+      var md = months[k];
+      md.days = md.days || {}; md.types = md.types || {}; md.part = md.part || {};
+      if ((p.v || 1) < 4) Object.keys(md.days).forEach(function (d) { var e = md.days[d]; if (e.s === "20:00" && e.e === "05:00" && !+e.b) e.b = 60; });
+      if ((p.v || 1) < 5) Object.keys(md.days).forEach(function (d) { var e = md.days[d]; if (e.rep && e.s === "17:00" && e.e === "20:00") { e.s = "20:00"; e.e = "05:00"; e.b = 60; } });
+      delete md.norm;
+    });
+    return { v: 5, settings: st, months: months, salaryHist: Object.assign({}, p.salaryHist || {}), updated: p.updated || 0 };
+  }
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (raw) { var p0 = JSON.parse(raw); if (p0 && p0.settings) state = normalize(p0); }
+  } catch (e) {}
+
+  var now = new Date();
+  var cur = { y: now.getFullYear(), m: now.getMonth() };
+  var sel = now.getDate();
+
+  function monthData(create) {
+    var k = mkey(cur.y, cur.m);
+    if (!state.months[k] && create) state.months[k] = { days: {}, types: {}, part: {} };
+    var md = state.months[k] || { days: {}, types: {}, part: {} };
+    if (!md.part) md.part = {};
+    return md;
+  }
+
+  /* ---------- Расчёт смены ---------- */
+  function toMin(s) { var a = String(s || "0:0").split(":"); return (+a[0] || 0) * 60 + (+a[1] || 0); }
+  function overlap(s, e, wins) {
+    var t = 0;
+    wins.forEach(function (w) { t += Math.max(0, Math.min(e, w[1]) - Math.max(s, w[0])); });
+    return t;
+  }
+  /* h — всего отработано, n — из них ночью, x — оплачиваемые сверх оклада */
+  function shiftHours(e, type) {
+    var s = toMin(e.s), en = toMin(e.e);
+    if (en <= s) en += 1440;
+    var brk = Math.max(0, +e.b || 0);
+    var worked = Math.max(0, en - s - brk);
+    var night = Math.min(worked, overlap(s, en, [[0, 360], [1200, 1800], [2640, 2880]]));
+    var extra = worked;
+    if (type === "work") extra = e.rep ? Math.max(0, worked - 480) : Math.max(0, worked - overlap(s, en, REGULAR));
+    return { h: worked / 60, n: night / 60, x: extra / 60 };
+  }
+  /* Сколько часов не хватает до 8 в неполный день (в пределах 08:00–12:00 и 13:00–17:00) */
+  function partMissing(pt) {
+    var s = toMin(pt.s), e = toMin(pt.e);
+    if (e <= s) return 8;
+    return Math.max(0, 8 - overlap(s, e, REGULAR) / 60);
+  }
+  /* Оклад месяца: последнее изменение, сделанное в этом месяце или раньше */
+  function salaryFor(y, m) {
+    var k = mkey(y, m), h = state.salaryHist || {}, best = null;
+    Object.keys(h).forEach(function (f) { if (f <= k && (best === null || f > best)) best = f; });
+    return best !== null ? h[best] : state.settings.salary;
+  }
+  function dayPay(type, e, rate) {
+    var st = state.settings, r = shiftHours(e, type);
+    var off = type !== "work";
+    return {
+      h: r.h, n: r.n, x: r.x, off: off,
+      main: r.x * rate * (off ? st.weekendCoef : st.otCoef),
+      night: r.n * rate * (st.nightPct / 100)
+    };
+  }
+  function monthTotals() {
+    var st = state.settings, wd = workDays(cur.y, cur.m);
+    var sal = salaryFor(cur.y, cur.m);
+    var rate = wd > 0 ? sal / (wd * 8) : 0;
+    var md = monthData(false), t = { rate: rate, wd: wd, base: sal, weekend: 0, extra: 0, night: 0, wH: 0, eH: 0, nH: 0 };
+    t.offDays = 0;
+    for (var dd = 1; dd <= daysIn(cur.y, cur.m); dd++) if (dayInfo(cur.y, cur.m, dd).manual) t.offDays++;
+    t.offPay = t.offDays * 8 * rate;
+    t.partDays = 0; t.partH = 0;
+    for (var pd = 1; pd <= daysIn(cur.y, cur.m); pd++) { var pi = dayInfo(cur.y, cur.m, pd); if (pi.part) { t.partDays++; t.partH += partMissing(pi.part); } }
+    t.partPay = t.partH * rate;
+    t.nN = 0; t.nHours = 0; t.nPay = 0;
+    Object.keys(md.days).forEach(function (d) {
+      var e = md.days[d], p = dayPay(dayInfo(cur.y, cur.m, +d).t, e, rate);
+      if (p.n > 0 || e.rep) { t.nN++; t.nHours += p.h; t.nPay += p.main + p.night; }
+      else if (p.off) { t.weekend += p.main; t.wH += p.x; }
+      else { t.extra += p.main; t.eH += p.x; }
+    });
+    t.total = t.base - t.offPay - t.partPay + t.weekend + t.extra + t.nPay;
+    return t;
+  }
+
+  /* ---------- Формат ---------- */
+  var rub0 = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
+  var rub2 = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var hf = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
+  function plural(n, a, b, c) { var m = n % 100, k = n % 10; return (m > 10 && m < 20) ? c : k === 1 ? a : (k > 1 && k < 5) ? b : c; }
+  function R(x) { return rub0.format(Math.round(x)) + " ₽"; }
+  function H(x) { return hf.format(x) + " ч"; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  /* ---------- Рендер ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+
+  function renderSummary() {
+    var t = monthTotals(), st = state.settings;
+    var rows =
+      '<div class="row"><span><i class="dot" style="background:var(--muted)"></i>Оклад <button class="link-btn" type="button" id="salEditBtn">изменить</button></span><span>' + R(t.base) + '</span></div>' +
+      '<div class="sal-edit" id="salEdit">' +
+        '<label class="f" for="salInput">Новый оклад, ₽<input type="number" id="salInput" inputmode="numeric" min="0" step="1000" value="' + t.base + '"></label>' +
+        '<button class="btn primary" type="button" id="salSave">Применить с ' + MONTHS_GEN[cur.m] + '</button>' +
+        '<p class="hint" style="margin:0;flex-basis:100%">Новый оклад действует с ' + MONTHS_GEN[cur.m] + ' ' + cur.y + ' и дальше. Прошлые месяцы не меняются.</p>' +
+      '</div>' +
+      (t.partDays ? '<div class="row"><span><i class="dot" style="background:var(--short)"></i>Неполные дни · ' + t.partDays + ' дн, ' + H(t.partH) + '</span><span>−' + R(t.partPay) + '</span></div>' : '') +
+      (t.offDays ? '<div class="row"><span><i class="dot" style="background:var(--holiday)"></i>Выходные в будни · ' + t.offDays + ' дн</span><span>−' + R(t.offPay) + '</span></div>' : '') +
+      '<div class="row"><span><i class="dot" style="background:transparent;border:1.5px dashed var(--work);width:9px;height:9px"></i>Выходные и праздники' + (t.wH ? ' · ' + H(t.wH) : '') + '</span><span>' + R(t.weekend) + '</span></div>' +
+      '<div class="row"><span><i class="dot" style="background:var(--work)"></i>Сверх графика в будни' + (t.eH ? ' · ' + H(t.eH) : '') + '</span><span>' + R(t.extra) + '</span></div>';
+    if (t.nN) rows += '<div class="row"><span><i class="dot" style="background:var(--night)"></i>Ночи · ' + t.nN + ' ' + plural(t.nN, 'смена', 'смены', 'смен') + ', ' + H(t.nHours) + '</span><span>' + R(t.nPay) + '</span></div>';
+    $("summary").innerHTML =
+      '<div class="total-label">Начислено за ' + MONTHS[cur.m] + '</div>' +
+      '<div class="total num">' + R(t.total) + '</div>' +
+      (st.taxOn
+        ? '<div class="net num">на руки ≈ <b>' + R(t.total * (1 - st.tax / 100)) + '</b> после НДФЛ ' + hf.format(st.tax) + '%</div>'
+        : '<div class="net">на руки, НДФЛ платит работодатель</div>') +
+      '<div class="rows num">' + rows + '</div>' +
+      '<div class="norm num"><span>Рабочих дней: ' + t.wd + '</span><span>Ставка: ' + rub2.format(t.rate) + ' ₽/ч</span></div>' +
+      (!CAL[cur.y] ? '<div class="warn">Праздники ' + cur.y + ' года не заложены — отметьте их как выходные вручную.</div>'
+        : CAL[cur.y].auto ? '<div class="warn">Календарь ' + cur.y + ' года предварительный: праздники и их переносы по закону есть, но правительство может перенести ещё и другие дни. Если что-то не совпадёт — отметьте день вручную.</div>' : '');
+    $("salEditBtn").onclick = function () { $("salEdit").classList.toggle("open"); if ($("salEdit").classList.contains("open")) $("salInput").focus(); };
+    $("salSave").onclick = function () {
+      var v = parseFloat(String($("salInput").value).replace(",", "."));
+      if (isNaN(v) || v < 0) return;
+      if (!state.salaryHist) state.salaryHist = {};
+      state.salaryHist[mkey(cur.y, cur.m)] = v;
+      changed(); flash("Оклад " + R(v) + " с " + MONTHS_GEN[cur.m]);
+    };
+  }
+
+  function renderGrid() {
+    $("monthTitle").textContent = MONTHS[cur.m] + " " + cur.y;
+    var first = (new Date(cur.y, cur.m, 1).getDay() + 6) % 7, html = "";
+    for (var i = 0; i < first; i++) html += "<span></span>";
+    var md = monthData(false), today = new Date();
+    var isCur = today.getFullYear() === cur.y && today.getMonth() === cur.m;
+    for (var d = 1; d <= daysIn(cur.y, cur.m); d++) {
+      var info = dayInfo(cur.y, cur.m, d), e = md.days[d], cls = "cell " + info.t;
+      var inner = '<span class="d">' + d + '</span>', label = d + " " + MONTHS_GEN[cur.m];
+      if (info.manual) cls += " manual";
+      if (info.part) { cls += " part"; inner += '<span class="pm num">−' + hf.format(Math.round(partMissing(info.part) * 10) / 10) + 'ч</span>'; }
+      if (e) {
+        var r = shiftHours(e, info.t);
+        cls += " has";
+        if (r.n > 0 || e.rep) cls += " night";
+        inner += '<span class="h num">' + (r.n > 0 ? "☾" : "") + (r.x > 0 || (r.n === 0 && !e.rep) ? "+" + hf.format(Math.round(r.x * 10) / 10) + "ч" : "") + '</span>';
+        if (e.rep) { label += ", ночь вместо дня"; cls += " repday"; }
+        label += ", смена " + hf.format(r.h) + " ч";
+      }
+      if (d === sel) cls += " sel";
+      if (isCur && d === today.getDate()) cls += " today";
+      html += '<button type="button" class="' + cls + '" data-d="' + d + '" aria-label="' + label + '">' + inner + "</button>";
+    }
+    $("grid").innerHTML = html;
+  }
+
+  /* Черновик смены выбранного дня: живёт, пока не нажали «Добавить» / «Сохранить» */
+  var draft = null, extraOpen = false;
+  var PRESETS = [
+    { name: "После работы 17:00–20:00", s: "17:00", e: "20:00", b: 0, w: 1 },
+    { name: "Ночь 20:00–05:00", s: "20:00", e: "05:00", b: 60 },
+    { name: "Ночь вместо дня 20:00–05:00", s: "20:00", e: "05:00", b: 60, rep: true, w: 1 },
+    { name: "Полный день 08:00–17:00", s: "08:00", e: "17:00", b: 60 },
+    { name: "Сутки 08:00–08:00", s: "08:00", e: "08:00", b: 60 }
+  ];
+
+  function renderEditor() {
+    var md = monthData(false), info = dayInfo(cur.y, cur.m, sel), saved = md.days[sel];
+    var dow = DOW[new Date(cur.y, cur.m, sel).getDay()];
+    var calWork = info.cal === "work";
+    /* «Работал» — будний день не отмечен выходным, или в выходной добавлена смена */
+    var worked = calWork ? !info.manual : !!saved;
+    var isPart = !!info.part;
+    var pill = info.t === "holiday" ? ["праздник", "red"] : info.t === "weekend" ? ["выходной", "red"] : ["рабочий 08:00–17:00", "blue"];
+    var html = '<div class="ed-head"><h3>' + dow + ", " + sel + " " + MONTHS_GEN[cur.m] + '</h3><span class="pill ' + pill[1] + '">' + pill[0] + (info.manual ? " · вручную" : "") + "</span></div>";
+    html += '<div class="seg" role="group" aria-label="Работали в этот день?">' +
+      '<button type="button" id="tWork" aria-pressed="' + (worked && !isPart) + '">' + (calWork ? "Полный день" : "Работал") + '</button>' +
+      (calWork ? '<button type="button" id="tPart" aria-pressed="' + isPart + '">Неполный</button>' : '') +
+      '<button type="button" id="tOff" aria-pressed="' + !worked + '">Выходной</button></div>';
+
+    if (isPart) {
+      var pt = info.part, miss = partMissing(pt), rate0 = monthTotals().rate;
+      html += '<p class="hint">Укажите, во сколько пришли и ушли. Обед 12:00–13:00 учитывается сам; часы, которых не хватает до 8, вычитаются из оклада.</p>';
+      html += '<div class="fields">' +
+        '<label class="f" for="pS">Пришёл<input type="time" id="pS" value="' + esc(pt.s) + '"></label>' +
+        '<label class="f" for="pE">Ушёл<input type="time" id="pE" value="' + esc(pt.e) + '"></label></div>';
+      html += '<div class="result num" id="pRes"></div>';
+      var partBind = function () {
+      var showPart = function () {
+        var cur0 = { s: $("pS").value || pt.s, e: $("pE").value || pt.e }, m = partMissing(cur0);
+        $("pRes").innerHTML = '<span>Отработано ' + H(8 - m) + ' из 8</span>' +
+          '<span class="big">' + (m > 0 ? "−" + R(m * rate0) + " из оклада" : "Полный день — без вычета") + '</span>' +
+          (m > 0 ? '<span style="color:var(--muted);font-size:13px">' + H(m) + " × " + rub2.format(rate0) + " ₽</span>" : "");
+        return cur0;
+      };
+      showPart();
+      var savePart = function () { var v = showPart(); monthData(true).part[sel] = v; state.updated = Date.now(); persist(); renderSummary(); renderGrid(); };
+      ["pS", "pE"].forEach(function (id) { $(id).addEventListener("input", showPart); $(id).addEventListener("change", savePart); });
+      };
+      html += '<h4 class="sub">Работал ещё вечером или ночью?</h4>';
+      if (!saved && !extraOpen) {
+        html += '<div class="actions"><button class="btn" type="button" id="eOpen">+ Добавить смену</button></div>';
+        $("editor").innerHTML = html;
+        partBind(); bindToggle();
+        $("eOpen").onclick = function () { extraOpen = true; renderEditor(); };
+        return;
+      }
+    }
+
+    if (!worked) {
+      html += '<p class="hint">' + (calWork
+        ? "Выходной в будний день — за него не платят: из оклада вычитается 8 ч × ставка, −" + R(8 * monthTotals().rate) + "."
+        : "Выходной — ничего не начисляется.") + "</p>";
+      $("editor").innerHTML = html;
+      bindToggle();
+      return;
+    }
+
+    if (!draft) draft = saved ? Object.assign({}, saved) : Object.assign({}, calWork ? PRESETS[0] : PRESETS[3]);
+    if (isPart) html += '<p class="hint">Отдельная смена вне 08:00–17:00 — оплачивается сверх оклада.</p>';
+    else html += '<p class="hint">' + (calWork
+      ? "Дневная смена 08:00–17:00 уже в окладе. Если работали дольше или ночью — добавьте смену, оплачиваются только часы вне 08:00–17:00."
+      : "Работа в выходной: оплачиваются все часы смены. Поправьте время, если нужно.") + "</p>";
+    html += '<div class="chips">' + PRESETS.map(function (p, i) {
+      if (p.w && !calWork) return "";
+      if (isPart && (p.rep || p.s === "08:00")) return "";
+      return '<button class="chip" type="button" data-i="' + i + '">' + p.name + "</button>";
+    }).join("") + "</div>";
+    html += '<div class="fields">' +
+      '<label class="f" for="eS">Начало<input type="time" id="eS" value="' + esc(draft.s) + '"></label>' +
+      '<label class="f" for="eE">Конец<input type="time" id="eE" value="' + esc(draft.e) + '"></label>' +
+      '<label class="f" for="eB">Перерыв, мин<input type="number" id="eB" inputmode="numeric" min="0" step="5" value="' + esc(draft.b) + '"></label></div>';
+    if (calWork && !isPart) html += '<label class="rep" for="eRep"><input type="checkbox" id="eRep"' + (draft.rep ? " checked" : "") + '><span>Работал ночью <b>вместо</b> дневной смены — 8 ч входят в оклад, доплачиваются только часы сверх 8</span></label>';
+    html += '<div class="result num" id="eRes"></div>';
+    html += '<div class="actions">' +
+      '<button class="btn primary" type="button" id="eSave">' + (saved ? "Сохранить изменения" : "Добавить смену") + "</button>" +
+      (saved && calWork ? '<button class="btn danger" type="button" id="eDel">Удалить смену</button>' : "") + "</div>";
+    $("editor").innerHTML = html;
+    renderResult();
+    bindToggle();
+    if (isPart) partBind();
+
+    Array.prototype.forEach.call($("editor").querySelectorAll(".chip"), function (b) {
+      b.onclick = function () {
+        var p = PRESETS[+b.getAttribute("data-i")];
+        draft = { s: p.s, e: p.e, b: p.b };
+        if (p.rep) draft.rep = true;
+        $("eS").value = p.s; $("eE").value = p.e; $("eB").value = p.b;
+        if ($("eRep")) $("eRep").checked = !!p.rep;
+        saveShift(p.rep ? "Ночь вместо дня записана" : "Смена записана: " + p.s + "–" + p.e);
+      };
+    });
+    var readInputs = function () {
+      draft = { s: $("eS").value || draft.s, e: $("eE").value || draft.e, b: Math.max(0, +$("eB").value || 0) };
+      if ($("eRep") && $("eRep").checked) draft.rep = true;
+      renderResult();
+    };
+    var saveShift = function (msg) {
+      readInputs();
+      monthData(true).days[sel] = Object.assign({}, draft);
+      changed();
+      flash(msg || (saved ? "Смена обновлена" : "Смена добавлена"));
+    };
+    ["eS", "eE", "eB"].forEach(function (id) {
+      $(id).addEventListener("input", readInputs);
+      $(id).addEventListener("change", function () { readInputs(); if (saved) saveShift("Смена обновлена"); });
+    });
+    if ($("eRep")) $("eRep").addEventListener("change", function () {
+      if (this.checked && shiftHours({ s: $("eS").value, e: $("eE").value, b: 0 }, "work").n === 0) {
+        $("eS").value = "20:00"; $("eE").value = "05:00"; $("eB").value = 60;
+      }
+      saveShift(this.checked ? "Ночь вместо дня записана" : "Смена записана как дополнительная");
+    });
+    $("eSave").onclick = function () { saveShift(); };
+    if (saved && calWork) $("eDel").onclick = function () { delete monthData(true).days[sel]; changed(); flash("Смена удалена"); };
+  }
+  function bindToggle() {
+    $("tWork").onclick = function () { setWorked(true); };
+    $("tOff").onclick = function () { setWorked(false); };
+    if ($("tPart")) $("tPart").onclick = function () {
+      var md = monthData(true);
+      md.types[sel] = "part";
+      if (!md.part[sel]) md.part[sel] = { s: "08:00", e: "15:00" };
+      changed(); flash("Неполный день — укажите время");
+    };
+  }
+  function setWorked(on) {
+    var md = monthData(true), calWork = calType(cur.y, cur.m, sel) === "work";
+    if (calWork) {
+      delete md.part[sel];
+      if (on) delete md.types[sel];
+      else { md.types[sel] = "off"; delete md.days[sel]; }
+      changed();
+      flash(on ? "Рабочий день" : "Отмечено: выходной");
+    } else {
+      delete md.types[sel];
+      if (on) {
+        if (!md.days[sel]) md.days[sel] = Object.assign({}, PRESETS[3]);
+        changed(); flash("Смена 08:00–17:00 добавлена — время можно поправить");
+      } else {
+        delete md.days[sel];
+        changed(); flash("Выходной — ничего не начисляется");
+      }
+    }
+  }
+  function renderResult() {
+    var info = dayInfo(cur.y, cur.m, sel), rate = monthTotals().rate, p = dayPay(info.t, draft, rate);
+    var pay = p.main + p.night, st = state.settings;
+    var lines = '<span>Смена ' + H(p.h) + (p.n ? ", из них ночью " + H(p.n) : "") + '</span>';
+    if (!p.off) lines += '<span style="color:var(--muted);font-size:13px">' + (draft.rep ? "Ночь вместо дня: 8 ч в окладе, сверх них " : "Вне графика 08:00–17:00: ") + H(p.x) + '</span>';
+    lines += '<span class="big">' + (pay > 0 ? "+" + R(pay) + " к окладу" : "Без доплат — входит в оклад") + '</span>';
+    if (pay > 0) lines += '<span style="color:var(--muted);font-size:13px">' + H(p.x) + " × " + rub2.format(rate) + " ₽" +
+      ((p.off ? st.weekendCoef : st.otCoef) !== 1 ? " × " + hf.format(p.off ? st.weekendCoef : st.otCoef) : "") +
+      (p.night ? " + ночные " + R(p.night) : "") + "</span>";
+    $("eRes").innerHTML = lines;
+  }
+  var flashTimer = null;
+  function flash(msg) {
+    var el = $("toast"); el.textContent = msg; el.classList.add("show");
+    clearTimeout(flashTimer); flashTimer = setTimeout(function () { el.classList.remove("show"); }, 1800);
+  }
+
+  function renderSettings() {
+    var s = state.settings;
+    $("sWeekend").value = s.weekendCoef; $("sNight").value = s.nightPct; $("sOt").value = s.otCoef; $("sTaxOn").checked = !!s.taxOn; $("sTax").value = s.tax; $("sTaxWrap").style.display = s.taxOn ? "" : "none";
+  }
+  function renderAll() { renderSummary(); renderGrid(); renderEditor(); }
+
+  /* ---------- События ---------- */
+  $("grid").addEventListener("click", function (ev) {
+    var b = ev.target.closest(".cell"); if (!b) return;
+    sel = +b.getAttribute("data-d"); draft = null; extraOpen = false; renderGrid(); renderEditor();
+  });
+  function shiftMonth(delta) {
+    var d = new Date(cur.y, cur.m + delta, 1); cur = { y: d.getFullYear(), m: d.getMonth() };
+    sel = Math.min(sel, daysIn(cur.y, cur.m)); draft = null; extraOpen = false; renderAll();
+  }
+  $("prev").onclick = function () { shiftMonth(-1); };
+  $("next").onclick = function () { shiftMonth(1); };
+  [["sWeekend", "weekendCoef"], ["sNight", "nightPct"], ["sOt", "otCoef"], ["sTax", "tax"]].forEach(function (p) {
+    $(p[0]).addEventListener("input", function () {
+      var v = parseFloat(String(this.value).replace(",", "."));
+      if (!isNaN(v) && v >= 0) { state.settings[p[1]] = v; state.updated = Date.now(); persist(); renderSummary(); renderGrid(); renderResult(); }
+    });
+  });
+
+  $("sTaxOn").addEventListener("change", function () {
+    state.settings.taxOn = this.checked; state.updated = Date.now(); persist();
+    $("sTaxWrap").style.display = this.checked ? "" : "none";
+    renderSummary();
+  });
+
+  /* ---------- Сохранение ---------- */
+  var dbRef = null, writing = false, pending = false, timer = null;
+  function setStatus(t) { $("saveState").textContent = t; }
+
+  function persist() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+    if (!dbRef) return;
+    clearTimeout(timer);
+    setStatus("Сохраняю…");
+    timer = setTimeout(flush, 600);
+  }
+  function changed() {
+    state.updated = Date.now();
+    draft = null;
+    persist();
+    renderAll();
+  }
+  function flush() {
+    if (!dbRef) return;
+    if (writing) { pending = true; return; }
+    writing = true;
+    dbRef.set(JSON.parse(JSON.stringify(state))).then(function () {
+      setStatus("Сохранено в аккаунте");
+    }).catch(function (err) {
+      if (err && err.code === "unavailable") { setTimeout(flush, 800 + Math.random() * 800); return; }
+      setStatus("Сохраняется только на этом устройстве");
+      if (err && (err.code === "invalid_argument" || err.code === "revoked" || err.code === "quota_exceeded")) dbRef = null;
+    }).then(function () {
+      writing = false;
+      if (pending) { pending = false; flush(); }
+    });
+  }
+
+  async function connect() {
+    if (!window.claude || typeof window.claude.use !== "function") return;
+    try {
+      var db = await window.claude.use("db"), user = await window.claude.use("user");
+      if (!db || !user) return;
+      var id = await user.id();
+      if (!id) return;
+      var ref = db.doc("data/users/" + id + "/salary");
+      var timeout = new Promise(function (_, rej) { setTimeout(function () { rej({ code: "timeout" }); }, 10000); });
+      var snap = await Promise.race([ref.get(), timeout]);
+      dbRef = ref;
+      if (snap.exists) {
+        var remote = normalize(JSON.parse(JSON.stringify(snap.data())));
+        if ((remote.updated || 0) > (state.updated || 0)) {
+          state = remote;
+          try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+          draft = null; renderSettings(); renderAll();
+          setStatus("Сохранено в аккаунте");
+        } else if ((remote.updated || 0) < (state.updated || 0)) flush();
+        else setStatus("Сохранено в аккаунте");
+      } else if (state.updated) {
+        flush();
+      } else {
+        setStatus("Данные будут сохраняться в аккаунте");
+      }
+    } catch (e) {
+      setStatus(e && e.code === "timeout" ? "Аккаунт не отвечает — сохраняю на устройстве" : "Сохраняется на этом устройстве");
+    }
+  }
+
+  function copyText(t) {
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = t; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta); return ok;
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return fallback(); });
+    }
+    return Promise.resolve(fallback());
+  }
+  $("exportBtn").onclick = function () {
+    var t = "ZP1:" + JSON.stringify(state);
+    copyText(t).then(function (ok) {
+      if (ok) flash("Данные скопированы");
+      else { $("importText").value = t; $("importText").select(); flash("Скопируйте текст из поля вручную"); }
+    });
+  };
+  $("importBtn").onclick = function () {
+    var raw = $("importText").value.trim().replace(/^ZP1:/, "");
+    var p;
+    try { p = JSON.parse(raw); } catch (e) { flash("Не получилось прочитать данные"); return; }
+    if (!p || typeof p !== "object" || !p.months) { flash("Это не данные калькулятора"); return; }
+    state = normalize(p);
+    $("importText").value = "";
+    renderSettings(); changed(); flash("Данные загружены");
+  };
+
+  renderSettings();
+  renderAll();
+  connect();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+}
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+</script>
+</body>
+</html>
