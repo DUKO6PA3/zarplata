@@ -216,10 +216,10 @@ details.card[open] summary::after { content: "－"; }
 
   <details class="card" id="transferBox">
     <summary>Перенос данных</summary>
-    <p class="hint">Чтобы перенести смены на другой телефон или в приложение: здесь нажмите «Скопировать», там вставьте текст в поле ниже и нажмите «Загрузить».</p>
+    <p class="hint">Чтобы перенести смены на другой телефон или в приложение: здесь нажмите «Скопировать мои данные» — текст появится в поле и скопируется. На другом устройстве вставьте его в это же поле и нажмите «Загрузить». Пересылать текст удобно через «Избранное» в мессенджере.</p>
     <div class="actions"><button class="btn" type="button" id="exportBtn">Скопировать мои данные</button></div>
     <label class="f" for="importText" style="margin-top:14px">Вставьте скопированные данные
-      <textarea id="importText" rows="3" spellcheck="false"></textarea></label>
+      <textarea id="importText" rows="3" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea></label>
     <div class="actions"><button class="btn primary" type="button" id="importBtn">Загрузить</button></div>
   </details>
 </div>
@@ -734,19 +734,40 @@ details.card[open] summary::after { content: "－"; }
     }
     return Promise.resolve(fallback());
   }
+  /* Формат ZP2: base64 от JSON — только латиница и цифры, не портится при копировании и автозамене */
+  function encodeData(obj) {
+    var bytes = new TextEncoder().encode(JSON.stringify(obj)), bin = "";
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return "ZP2:" + btoa(bin);
+  }
+  function decodeData(text) {
+    var t = String(text || "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+    var m = t.match(/ZP2:([A-Za-z0-9+\/=\s]+)/);
+    if (m) {
+      var bin = atob(m[1].replace(/\s+/g, "")), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return JSON.parse(new TextDecoder().decode(bytes));
+    }
+    /* старый формат ZP1 — с исправлением «умных» кавычек */
+    t = t.replace(/^[\s\S]*?ZP1:/, "").replace(/[\u201C\u201D\u201E\u00AB\u00BB\u2033]/g, '"').replace(/[\u2018\u2019]/g, "'");
+    var a = t.indexOf("{"), b = t.lastIndexOf("}");
+    if (a < 0 || b < a) throw new Error("no json");
+    return JSON.parse(t.slice(a, b + 1));
+  }
   $("exportBtn").onclick = function () {
-    var t = "ZP1:" + JSON.stringify(state);
+    var t = encodeData(state);
+    $("importText").value = t;
     copyText(t).then(function (ok) {
       if (ok) flash("Данные скопированы");
-      else { $("importText").value = t; $("importText").select(); flash("Скопируйте текст из поля вручную"); }
+      else { $("importText").focus(); $("importText").select(); flash("Выделите текст в поле и скопируйте"); }
     });
   };
   $("importBtn").onclick = function () {
-    var raw = $("importText").value.trim().replace(/^ZP1:/, "");
     var p;
-    try { p = JSON.parse(raw); } catch (e) { flash("Не получилось прочитать данные"); return; }
+    try { p = decodeData($("importText").value); } catch (e) { flash("Текст скопирован не целиком — скопируйте ещё раз"); return; }
     if (!p || typeof p !== "object" || !p.months) { flash("Это не данные калькулятора"); return; }
     state = normalize(p);
+    state.updated = Date.now();
     $("importText").value = "";
     renderSettings(); changed(); flash("Данные загружены");
   };
